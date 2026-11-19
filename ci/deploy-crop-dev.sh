@@ -27,8 +27,7 @@
 #   AWS_ACCOUNT_ID   owner of the ECR registry                      required
 #   KUBECONFIG       kubeconfig for the dev cluster                 required
 #   AWS_REGION       default ap-south-1
-#   (the registry images: eoan/cropsown-regsitry/<image>-<RP version>, from ci/image_names.py)
-#   DASHBOARD_API_ECR default openg2p/cropsown-registry/dashboard-api
+#   (the registry and dashboard-api images: eoan/cropsown-regsitry/<image>-<RP version>, from ci/image_names.py)
 #   HELM_RELEASE     default cropsown-registry
 #   HELM_NAMESPACE   default crop
 #   EXPECTED_SERVER  default https://10.0.1.58:6443 â€” refuse any other API server
@@ -53,7 +52,7 @@
 #   SEED_MINIO_ASSETS true|false, default true  db-seed also uploads the transform templates to MinIO
 #   DASHBOARD_API    true|false, default true   deploy the cs_rpt_* reporting views and
 #                                               cropsown-registry-dashboard-api (image
-#                                               ${DASHBOARD_API_ECR}:<tag>)
+#                                               eoan/cropsown-regsitry/dashboard-api-<RP version>:<tag>)
 #   HELM_TIMEOUT     default 40m
 #   ROLLOUT_TIMEOUT  per-Deployment rollout wait, default 420s
 #   PULL_SECRET      ECR imagePullSecret to write/use, default cropsown-ecr
@@ -71,7 +70,6 @@ TAG="${1:-${TAG:-}}"
 : "${AWS_ACCOUNT_ID:?set AWS_ACCOUNT_ID}"
 : "${KUBECONFIG:?set KUBECONFIG}"
 AWS_REGION="${AWS_REGION:-ap-south-1}"
-DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-openg2p/cropsown-registry/dashboard-api}"
 HELM_RELEASE="${HELM_RELEASE:-cropsown-registry}"
 HELM_NAMESPACE="${HELM_NAMESPACE:-crop}"
 EXPECTED_SERVER="${EXPECTED_SERVER-https://10.0.1.58:6443}"
@@ -110,7 +108,7 @@ ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 # The registry images, resolved before anything is changed: a failed lookup stops here, where inside the values
 # heredoc below it would only leave an empty repository.
 declare -A IMAGE
-for component in staff-api staff-ui partner-api celery db-seed sanity-tests; do
+for component in staff-api staff-ui partner-api celery db-seed sanity-tests dashboard-api; do
   IMAGE[$component]="${ECR}/$(python3 ci/image_names.py repository "$component")"
 done
 
@@ -332,7 +330,7 @@ reporting:
     enabled: ${DASHBOARD_API}
 dashboardApi:
   enabled: ${DASHBOARD_API}
-  image: {repository: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_API_ECR}', tag: '${TAG}', digest: '${DASHBOARD_API_DIGEST}'}
+  image: {repository: '${IMAGE[dashboard-api]}', tag: '${TAG}', digest: '${DASHBOARD_API_DIGEST}'}
   # Authentication is configured through dashboardApi.auth in the chart.
 EOF
 if [ "$DASHBOARD_API" = "true" ] && [ -n "$BASE_DOMAIN" ]; then

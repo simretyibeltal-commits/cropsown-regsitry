@@ -27,6 +27,19 @@ class ChartDeliveryTests(unittest.TestCase):
         self.assertIn('REPOSITORY=$(python3 ci/image_names.py repository "${SVC}")', build)
         self.assertIn('IMAGE="${ECR_REGISTRY}/${REPOSITORY}"', build)
 
+    def test_the_dashboard_images_are_named_by_ci_image_names(self):
+        build = PIPELINE.split("stage('Build & Push')", 1)[1].split("stage('Package chart')", 1)[0]
+        self.assertNotIn("DASHBOARD_API_ECR", PIPELINE)
+        self.assertNotIn("DASHBOARD_UI_ECR", PIPELINE)
+        self.assertIn('REPOSITORY=$(python3 ci/image_names.py repository dashboard-ui)', build)
+        self.assertIn('record_image dashboardUi.image "${REPOSITORY}" "${IMAGE_TAG}"', build)
+        self.assertIn('REPOSITORY=$(python3 ci/image_names.py repository dashboard-api)', build)
+        self.assertIn('record_image dashboardApi.image "${REPOSITORY}" "${IMAGE_TAG}"', build)
+        self.assertEqual(build.count("ensure_repository"), 4)    # defined once, then the registry images and both dashboards
+        deploy = PIPELINE.split("stage('Deploy')", 1)[1].split("stage('Update staging images')", 1)[0]
+        self.assertIn('"${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/$(python3 ci/image_names.py repository dashboard-ui)" '
+                      '"${IMAGE_TAG}"', deploy)
+
     def test_the_connector_actions_resolve_the_connector_images_of_ci_image_names(self):
         resolve = PIPELINE.split("stage('Resolve connector image')", 1)[1].split("stage('Stash deploy')", 1)[0]
         self.assertIn('sh(returnStdout: true, script: "python3 ci/image_names.py repository ${name}").trim()', resolve)

@@ -32,10 +32,8 @@ pipeline {
     environment {
         AWS_REGION     = 'ap-south-1'
         // Registry images: eoan/cropsown-regsitry/<image>-<RP version>:<version>-<branch>.<build>, named by
-        // ci/image_names.py from helm/openg2p-cropsown-registry/Chart.yaml. The dashboard images come from their own
-        // repositories and keep the openg2p/<registry>/<image> names.
-        DASHBOARD_API_ECR = 'openg2p/cropsown-registry/dashboard-api'
-        DASHBOARD_UI_ECR = 'openg2p/cropsown-registry/dashboard-ui'
+        // ci/image_names.py from helm/openg2p-cropsown-registry/Chart.yaml. The dashboard images, built from their own
+        // repositories, are named the same way (dashboard-api, dashboard-ui).
         // A maintainer's token for now; the GitHub App replaces this credential when it is configured.
         OAN_HELM_CRED_ID = 'oan-helm-fork-token'
 
@@ -238,6 +236,14 @@ pipeline {
                                 --image-ids imageTag="$3" --query 'imageDetails[0].imageDigest' --output text)
                             printf '%s\\t%s\\t%s@%s\\n' "$1" "${ECR_REGISTRY}/$2" "$3" "$DIGEST" >> chart-images.tsv
                         }
+                        # ECR does not create repositories on push, and a new platform version is a new repository name.
+                        ensure_repository() {
+                            aws ecr describe-repositories --region "${AWS_REGION}" \
+                                --repository-names "$1" >/dev/null 2>&1 \
+                              || aws ecr create-repository --region "${AWS_REGION}" \
+                                    --repository-name "$1" \
+                                    --image-scanning-configuration scanOnPush=true >/dev/null
+                        }
 
                         for SVC in ${SERVICES}; do
                             REPOSITORY=$(python3 ci/image_names.py repository "${SVC}")
@@ -254,13 +260,7 @@ pipeline {
                                 -f "docker/${SVC}/Dockerfile" \
                                 -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .
 
-                            # ECR does not create repositories on push, and a new platform version is a new repository name.
-                            aws ecr describe-repositories --region "${AWS_REGION}" \
-                                --repository-names "${REPOSITORY}" >/dev/null 2>&1 \
-                              || aws ecr create-repository --region "${AWS_REGION}" \
-                                    --repository-name "${REPOSITORY}" \
-                                    --image-scanning-configuration scanOnPush=true >/dev/null
-
+                            ensure_repository "${REPOSITORY}"
                             docker push "${IMAGE}:${IMAGE_TAG}"
                             docker push "${IMAGE}:${BRANCH_NAME}"
                             case "${SVC}" in
@@ -288,17 +288,21 @@ pipeline {
                         done
 
                         if [ -n "${DASHBOARD_UI_SHA:-}" ]; then
-                            UI_IMAGE="${ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${DASHBOARD_UI_SHA}"
+                            REPOSITORY=$(python3 ci/image_names.py repository dashboard-ui)
+                            ensure_repository "${REPOSITORY}"
+                            UI_IMAGE="${ECR_REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
                             docker build --label org.opencontainers.image.revision="${DASHBOARD_UI_SHA}" \
                               -f .build/dashboard-ui/Dockerfile -t "$UI_IMAGE" .build/dashboard-ui
                             docker push "$UI_IMAGE"
-                            record_image dashboardUi.image "${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"
+                            record_image dashboardUi.image "${REPOSITORY}" "${IMAGE_TAG}"
                         fi
                         # Skipped when 'Checkout dashboard-api' did not run (staging).
                         if [ -n "${DASHBOARD_API_SHA:-}" ]; then
                             # The dashboard service, from its own repository (cloned by
                             # 'Checkout dashboard-api'), with its own build context.
-                            IMAGE="${ECR_REGISTRY}/${DASHBOARD_API_ECR}"
+                            REPOSITORY=$(python3 ci/image_names.py repository dashboard-api)
+                            ensure_repository "${REPOSITORY}"
+                            IMAGE="${ECR_REGISTRY}/${REPOSITORY}"
                             echo "--- dashboard-api (${DASHBOARD_API_REF_USED} @ ${DASHBOARD_API_SHA}) -> ${IMAGE}:${IMAGE_TAG} ---"
                             docker build --pull \
                                 --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from "${IMAGE}:${BRANCH_NAME}" \
@@ -309,7 +313,7 @@ pipeline {
                                 -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .build/dashboard-api
                             docker push "${IMAGE}:${IMAGE_TAG}"
                             docker push "${IMAGE}:${BRANCH_NAME}"
-                            record_image dashboardApi.image "${DASHBOARD_API_ECR}" "${IMAGE_TAG}"
+                            record_image dashboardApi.image "${REPOSITORY}" "${IMAGE_TAG}"
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         fi
 
@@ -500,7 +504,7 @@ pipeline {
                                 sh 'BUILT_CHART_DIR="$PWD/built-chart" bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
                             }
                         }
-                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"'
+                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/$(python3 ci/image_names.py repository dashboard-ui)" "${IMAGE_TAG}"'
                     }
                 }
             }

@@ -20,6 +20,12 @@ class ImageNameScriptTests(unittest.TestCase):
         for component in ("staff-api", "staff-ui", "partner-api", "celery", "db-seed", "sanity-tests"):
             self.assertIn("image: {repository: '${IMAGE[%s]}', tag: '${TAG}'}" % component, deploy)
 
+    def test_the_dev_deploy_names_the_dashboard_api_with_ci_image_names(self):
+        deploy = script("ci/deploy-crop-dev.sh")
+        self.assertNotIn("DASHBOARD_API_ECR", deploy)
+        self.assertIn("for component in staff-api staff-ui partner-api celery db-seed sanity-tests dashboard-api; do", deploy)
+        self.assertIn("image: {repository: '${IMAGE[dashboard-api]}', tag: '${TAG}', digest: '${DASHBOARD_API_DIGEST}'}", deploy)
+
     def test_the_staging_image_update_takes_the_repositories_of_ci_image_names(self):
         staging = script("ci/staging-set-images.sh")
         self.assertNotIn("openg2p/cropsown-registry", staging)
