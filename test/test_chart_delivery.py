@@ -36,9 +36,25 @@ class ChartDeliveryTests(unittest.TestCase):
         self.assertIn('REPOSITORY=$(python3 ci/image_names.py repository dashboard-api)', build)
         self.assertIn('record_image dashboardApi.image "${REPOSITORY}" "${IMAGE_TAG}"', build)
         self.assertEqual(build.count("ensure_repository"), 4)    # defined once, then the registry images and both dashboards
+
+    def test_the_dashboard_ui_is_installed_from_the_chart_this_build_packaged(self):
         deploy = PIPELINE.split("stage('Deploy')", 1)[1].split("stage('Update staging images')", 1)[0]
-        self.assertIn('"${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/$(python3 ci/image_names.py repository dashboard-ui)" '
-                      '"${IMAGE_TAG}"', deploy)
+        self.assertIn('if [ -d built-chart/dashboard ]; then bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" '
+                      '"$PWD/built-chart/dashboard"; fi', deploy)
+        ui = (ROOT / "ci/dashboard/deploy-ui.sh").read_text(encoding="utf-8")
+        self.assertIn('chart=$(ls "$built"/"$release"-*.tgz)', ui)
+        self.assertIn("*@sha256:*", ui)
+
+    def test_the_dashboard_chart_is_packaged_only_when_it_may_be_deployed(self):
+        package = (ROOT / "ci/deploy/package-chart.sh").read_text(encoding="utf-8")
+        self.assertIn('$1 == "dashboardUi.image" { $1 = "image"; print }', package)
+        self.assertIn('[ "$(python3 ci/deploy/oan_chart.py is-deployable dashboard dev)" = "true" ]', package)
+        self.assertIn("--output built-chart/dashboard", package)
+        self.assertIn("oan_chart.py values dashboard built-chart/dashboard/values.yaml", package)
+
+    def test_publish_chart_publishes_the_dashboard_chart_too(self):
+        publish = (ROOT / "ci/deploy/publish-chart.sh").read_text(encoding="utf-8")
+        self.assertIn("for archive in built-chart/*.tgz built-chart/dashboard/*.tgz; do", publish)
 
     def test_the_connector_actions_resolve_the_connector_images_of_ci_image_names(self):
         resolve = PIPELINE.split("stage('Resolve connector image')", 1)[1].split("stage('Stash deploy')", 1)[0]

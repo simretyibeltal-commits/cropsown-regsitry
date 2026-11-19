@@ -504,7 +504,8 @@ pipeline {
                                 sh 'BUILT_CHART_DIR="$PWD/built-chart" bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
                             }
                         }
-                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/$(python3 ci/image_names.py repository dashboard-ui)" "${IMAGE_TAG}"'
+                        // The dashboard chart 'Package chart' packaged with this build's UI image, when it packaged one.
+                        sh 'if [ -d built-chart/dashboard ]; then bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "$PWD/built-chart/dashboard"; fi'
                     }
                 }
             }
