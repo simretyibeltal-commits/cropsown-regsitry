@@ -1,6 +1,7 @@
 """The ECR names of the Crop Sown Registry images: eoan/cropsown-regsitry/<image>-<RP version>:<version>-<branch>.<build>.
 
     eoan/cropsown-regsitry/staff-ui-1.2.2-rc.614:0.0.0-develop.300
+    eoan/oan_cropsown_dashboard/dashboard-ui-1.2.2-rc.614:0.0.0-develop.300   (a dashboard, under its own repository)
 
 The path is the GitHub repository's name as it is spelled (cropsown-regsitry). The RP version is appVersion of
 helm/openg2p-cropsown-registry/Chart.yaml (the OpenG2P registry platform the images are built on). The pipeline, the
@@ -14,6 +15,9 @@ from pathlib import Path
 
 CHART = Path(__file__).resolve().parents[1] / "helm/openg2p-cropsown-registry/Chart.yaml"
 PATH = "eoan/cropsown-regsitry"
+# The dashboards are built from their own GitHub repositories and are named under those, like every eoan image:
+# eoan/<repository>/<image>-<RP version>.
+PATHS = {"dashboard-api": "eoan/cropsown-registry-dashboard-api", "dashboard-ui": "eoan/oan_cropsown_dashboard"}
 
 
 def _chart_field(name):
@@ -24,7 +28,7 @@ def _chart_field(name):
 
 
 def repository(image):
-    return "%s/%s-%s" % (PATH, image, _chart_field("appVersion"))
+    return "%s/%s-%s" % (PATHS.get(image, PATH), image, _chart_field("appVersion"))
 
 
 def tag(branch, build):

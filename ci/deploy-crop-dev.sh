@@ -52,7 +52,7 @@
 #   SEED_MINIO_ASSETS true|false, default true  db-seed also uploads the transform templates to MinIO
 #   DASHBOARD_API    true|false, default true   deploy the cs_rpt_* reporting views and
 #                                               cropsown-registry-dashboard-api (image
-#                                               eoan/cropsown-regsitry/dashboard-api-<RP version>:<tag>)
+#                                               eoan/cropsown-registry-dashboard-api/dashboard-api-<RP version>:<tag>)
 #   HELM_TIMEOUT     default 40m
 #   ROLLOUT_TIMEOUT  per-Deployment rollout wait, default 420s
 #   PULL_SECRET      ECR imagePullSecret to write/use, default cropsown-ecr

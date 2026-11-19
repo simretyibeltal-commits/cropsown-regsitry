@@ -33,7 +33,7 @@ pipeline {
         AWS_REGION     = 'ap-south-1'
         // Registry images: eoan/cropsown-regsitry/<image>-<RP version>:<version>-<branch>.<build>, named by
         // ci/image_names.py from helm/openg2p-cropsown-registry/Chart.yaml. The dashboard images, built from their own
-        // repositories, are named the same way (dashboard-api, dashboard-ui).
+        // repositories, are named under those (eoan/<repository>/dashboard-{api,ui}-<RP version>).
         // A maintainer's token for now; the GitHub App replaces this credential when it is configured.
         OAN_HELM_CRED_ID = 'oan-helm-fork-token'
 
